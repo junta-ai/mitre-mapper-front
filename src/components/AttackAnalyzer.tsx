@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiService } from '../services/api';
+import type { TechniqueMatch } from '../services/api';
 
 interface Technique {
   id: string;
   name: string;
   icon: string;
+  tactic: string;
+  description: string;
+  similarity_score: number;
 }
 
 const AttackAnalyzer: React.FC = () => {
+  const navigate = useNavigate();
+  
   const MITRE_TECHNIQUES = {
     'T1595': { name: 'Varredura Ativa', tactic: 'Reconnaissance', icon: 'radar' },
     'T1592': { name: 'Coleta de Informações sobre Hosts da Vítima', tactic: 'Reconnaissance', icon: 'devices' },
@@ -220,27 +228,60 @@ const AttackAnalyzer: React.FC = () => {
     'T1529': { name: 'Desligamento/Reinicialização do Sistema', tactic: 'Impact', icon: 'power_settings_new' },
   };
   const [description, setDescription] = useState('');
-  const techniques: Technique[] = [
-    {
-      id: 'T1548',
-      name: 'Abuso de Mecanismo de Controle de Elevação',
-      icon: 'shield',
-    },
-    {
-      id: 'T1059',
-      name: 'Interpretador de Comando e Script',
-      icon: 'terminal',
-    },
-    {
-      id: 'T1105',
-      name: 'Transferência de Ferramenta de Entrada',
-      icon: 'cloud_off',
-    },
-  ];
+  const [techniques, setTechniques] = useState<Technique[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [humanResponse, setHumanResponse] = useState<string | null>(null);
+  const [llmMetadata, setLlmMetadata] = useState<{
+    model?: string;
+    language?: string;
+    generation_time?: number;
+    error?: string;
+  } | null>(null);
+  const [processingTime, setProcessingTime] = useState<number | null>(null);
+  const [useLlm, setUseLlm] = useState(false);
+  const [language, setLanguage] = useState('pt-br');
 
-  const handleAnalyze = () => {
-    // Lógica de análise será implementada aqui
-    console.log('Analyzing:', description);
+  const getTechniqueIcon = (techniqueId: string): string => {
+    const technique = MITRE_TECHNIQUES[techniqueId as keyof typeof MITRE_TECHNIQUES];
+    return technique?.icon || 'help';
+  };
+
+  const handleAnalyze = async () => {
+    if (!description.trim()) {
+      setError('Por favor, insira uma descrição do ataque.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setTechniques([]);
+    setHumanResponse(null);
+    setLlmMetadata(null);
+    setProcessingTime(null);
+
+    try {
+      const result = await apiService.classifyNarrative(description, 10, useLlm, language);
+      
+      const mappedTechniques: Technique[] = result.techniques.map((tech: TechniqueMatch) => ({
+        id: tech.technique_id,
+        name: tech.technique_name,
+        icon: getTechniqueIcon(tech.technique_id),
+        tactic: tech.tactic,
+        description: tech.description,
+        similarity_score: tech.similarity_score,
+      }));
+
+      setTechniques(mappedTechniques);
+      setHumanResponse(result.human_response || null);
+      setLlmMetadata(result.llm_metadata || null);
+      setProcessingTime(result.processing_time);
+    } catch (err) {
+      console.error('Error analyzing narrative:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao analisar o cenário. Verifique se a API está rodando.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCopy = () => {
@@ -253,8 +294,17 @@ const AttackAnalyzer: React.FC = () => {
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-8">
-      {/* Page Heading */}
+      {/* Back Button and Page Heading */}
       <div className="w-full">
+        <div className="flex items-center gap-4 mb-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10 transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            <span>Voltar</span>
+          </button>
+        </div>
         <h1 className="text-slate-900 dark:text-white text-3xl font-bold tracking-tight">
           Análise de Cenários de Ataque Cibernético
         </h1>
@@ -276,76 +326,201 @@ const AttackAnalyzer: React.FC = () => {
           />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex items-center justify-center gap-2 rounded-md h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
-            >
-              <span className="material-symbols-outlined text-base">content_copy</span>
-              <span>Copiar</span>
-            </button>
-            <button
-              onClick={handleClear}
-              className="flex items-center justify-center gap-2 rounded-md h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
-            >
-              <span className="material-symbols-outlined text-base">delete</span>
-              <span>Limpar</span>
-            </button>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex items-center justify-center gap-2 rounded-md h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
+              >
+                <span className="material-symbols-outlined text-base">content_copy</span>
+                <span>Copiar</span>
+              </button>
+              <button
+                onClick={handleClear}
+                className="flex items-center justify-center gap-2 rounded-md h-9 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
+              >
+                <span className="material-symbols-outlined text-base">delete</span>
+                <span>Limpar</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useLlm}
+                  onChange={(e) => setUseLlm(e.target.checked)}
+                  className="rounded border-slate-300 text-primary-light focus:ring-primary-light dark:border-slate-700 dark:bg-slate-800"
+                />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Usar LLM
+                </span>
+              </label>
+              {useLlm && (
+                <select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                  className="rounded-md border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <option value="pt-br">Português</option>
+                  <option value="en">English</option>
+                </select>
+              )}
+            </div>
           </div>
           <button
             onClick={handleAnalyze}
+            disabled={isLoading || !description.trim()}
             className="flex h-12 min-w-[84px] cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary-light dark:bg-primary px-5 text-base font-bold text-white shadow-sm hover:bg-primary-light/90 dark:hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-light dark:focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-xl">hub</span>
-            <span className="truncate">Analisar</span>
+            {isLoading ? (
+              <>
+                <span className="material-symbols-outlined text-xl animate-spin">progress_activity</span>
+                <span className="truncate">Analisando...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-xl">hub</span>
+                <span className="truncate">Analisar</span>
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Results Display Card */}
-      <div className="w-full rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50">
-        {/* Section Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 p-6 dark:border-slate-800">
-          <h2 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight">
-            Técnicas MITRE ATT&CK® Identificadas
-          </h2>
-          <span className="rounded-full bg-primary-light/10 dark:bg-primary/10 px-3 py-1 text-sm font-semibold text-primary-light dark:text-primary">
-            {techniques.length} Técnicas Encontradas
-          </span>
+      {/* Error Message */}
+      {error && (
+        <div className="w-full rounded-xl border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-6">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+            <p className="text-red-800 dark:text-red-300">{error}</p>
+          </div>
         </div>
+      )}
 
-        {/* Techniques List */}
-        <div className="flex flex-col">
-          {techniques.map((technique, index) => (
-            <React.Fragment key={technique.id}>
-              <div className="grid grid-cols-[auto,1fr,auto] items-center gap-x-4 p-6 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/20">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <span className="material-symbols-outlined text-slate-500 dark:text-slate-400">
-                    {technique.icon}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-col">
-                  <p className="truncate font-semibold text-slate-800 dark:text-slate-200">
-                    {technique.name}
-                  </p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{technique.id}</p>
-                </div>
-                <a
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
-                  href={`https://attack.mitre.org/techniques/${technique.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span className="material-symbols-outlined text-xl">open_in_new</span>
-                </a>
+      {/* LLM Analysis */}
+      {humanResponse && (
+        <div className="w-full rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+          <div className="p-6">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-blue-600 dark:text-blue-400">psychology</span>
+                <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200">Análise do LLM</h3>
               </div>
-              {index < techniques.length - 1 && (
-                <div className="mx-6 border-t border-slate-200 dark:border-slate-800" />
+              {llmMetadata && (
+                <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                  {llmMetadata.model && (
+                    <span className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded">
+                      {llmMetadata.model}
+                    </span>
+                  )}
+                  {llmMetadata.generation_time && (
+                    <span className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded">
+                      {llmMetadata.generation_time.toFixed(2)}s
+                    </span>
+                  )}
+                </div>
               )}
-            </React.Fragment>
-          ))}
+            </div>
+            {llmMetadata?.error ? (
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-300">
+                <span className="material-symbols-outlined">error</span>
+                <p>Erro ao gerar resposta: {llmMetadata.error}</p>
+              </div>
+            ) : (
+              <p className="text-blue-800 dark:text-blue-300 whitespace-pre-wrap">{humanResponse}</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Results Display Card */}
+      {techniques.length > 0 && (
+        <div className="w-full rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50">
+          {/* Section Header */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 p-6 dark:border-slate-800">
+            <h2 className="text-slate-900 dark:text-white text-lg font-bold tracking-tight">
+              Técnicas MITRE ATT&CK® Identificadas
+            </h2>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-primary-light/10 dark:bg-primary/10 px-3 py-1 text-sm font-semibold text-primary-light dark:text-primary">
+                {techniques.length} Técnicas Encontradas
+              </span>
+              {processingTime !== null && (
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {processingTime.toFixed(2)}s
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Techniques List */}
+          <div className="flex flex-col">
+            {techniques.map((technique, index) => (
+              <React.Fragment key={technique.id}>
+                <div className="grid grid-cols-[auto,1fr,auto] items-center gap-x-4 p-6 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/20">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <span className="material-symbols-outlined text-slate-500 dark:text-slate-400">
+                      {technique.icon}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 flex-col">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="truncate font-semibold text-slate-800 dark:text-slate-200">
+                        {technique.name}
+                      </p>
+                      <span className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                        {(technique.similarity_score * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{technique.id} • {technique.tactic}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{technique.description}</p>
+                  </div>
+                  <a
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10"
+                    href={`https://attack.mitre.org/techniques/${technique.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className="material-symbols-outlined text-xl">open_in_new</span>
+                  </a>
+                </div>
+                {index < techniques.length - 1 && (
+                  <div className="mx-6 border-t border-slate-200 dark:border-slate-800" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="w-full rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50 p-12">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <span className="material-symbols-outlined text-5xl text-primary-light dark:text-primary animate-spin">
+              progress_activity
+            </span>
+            <p className="text-slate-600 dark:text-slate-400">Analisando cenário de ataque...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && techniques.length === 0 && !error && (
+        <div className="w-full rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/50 p-12">
+          <div className="flex flex-col items-center justify-center gap-4 text-center">
+            <span className="material-symbols-outlined text-5xl text-slate-400">search</span>
+            <div>
+              <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                Nenhuma análise realizada
+              </p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
+                Descreva um cenário de ataque e clique em "Analisar" para identificar as técnicas MITRE ATT&CK
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

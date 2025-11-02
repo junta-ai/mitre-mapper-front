@@ -1,5 +1,7 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import DarkModeToggle from './DarkModeToggle';
+import ApiHealthCheck from './ApiHealthCheck';
 
 const TopNavBar: React.FC = () => {
   return (
@@ -184,21 +186,14 @@ const TopNavBar: React.FC = () => {
           </div>
           <h2 className="text-lg font-bold tracking-tight">Identificador ATT&CK</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <ApiHealthCheck />
+          <div className="flex items-center gap-2">
           <DarkModeToggle />
-          <button className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10">
+          <Link to="/documentation" className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10" title="Documentação">
             <span className="material-symbols-outlined text-xl">help</span>
-          </button>
-          <button className="flex h-10 w-10 cursor-pointer items-center justify-center overflow-hidden rounded-full text-slate-600 hover:bg-slate-500/10 dark:text-slate-400 dark:hover:bg-slate-400/10">
-            <span className="material-symbols-outlined text-xl">settings</span>
-          </button>
-          <div
-            className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
-            style={{
-              backgroundImage:
-                'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAKD7xJ-o-FeB62Q0NgwaI-qwoH7G9rVh6OE1SfbrdmCKzqRiUlGT6RhM8Jg3vr4gs43QZVFv5194CKTWO1xpoCaJh8ZnbcH_NtVTuWcp6qJO8cUa0Tm_aecaIpMdLFSZytlL6zrtpYfm5ynnzXIpYomxTqdrWCTdj1gtFqAz22Yi_9ahCT3ikiVzOBXJabJqvwqI_7u2247Xj2FZM7dhti9kjFw4ffFhkBFO7D6bZQXbck6Zjka_5EhkURsawQQ0b1ABlkP06nkOFo")',
-            }}
-          />
+          </Link>
+          </div>
         </div>
       </div>
     </header>

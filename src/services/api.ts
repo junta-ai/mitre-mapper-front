@@ -32,6 +32,7 @@ export interface ClassificationResponse {
     generation_time?: number;
     error?: string;
   };
+  below_threshold?: boolean;
 }
 
 export interface HealthResponse {

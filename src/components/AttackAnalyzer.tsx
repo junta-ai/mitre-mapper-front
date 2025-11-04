@@ -241,6 +241,7 @@ const AttackAnalyzer: React.FC = () => {
   const [processingTime, setProcessingTime] = useState<number | null>(null);
   const [useLlm, setUseLlm] = useState(false);
   const [language, setLanguage] = useState('pt-br');
+  const [belowThreshold, setBelowThreshold] = useState(false);
 
   const getTechniqueIcon = (techniqueId: string): string => {
     const technique = MITRE_TECHNIQUES[techniqueId as keyof typeof MITRE_TECHNIQUES];
@@ -259,6 +260,7 @@ const AttackAnalyzer: React.FC = () => {
     setHumanResponse(null);
     setLlmMetadata(null);
     setProcessingTime(null);
+    setBelowThreshold(false);
 
     try {
       const result = await apiService.classifyNarrative(description, 10, useLlm, language);
@@ -276,6 +278,7 @@ const AttackAnalyzer: React.FC = () => {
       setHumanResponse(result.human_response || null);
       setLlmMetadata(result.llm_metadata || null);
       setProcessingTime(result.processing_time);
+      setBelowThreshold(result.below_threshold || false);
     } catch (err) {
       console.error('Error analyzing narrative:', err);
       setError(err instanceof Error ? err.message : 'Erro ao analisar o cenário. Verifique se a API está rodando.');
@@ -429,6 +432,27 @@ const AttackAnalyzer: React.FC = () => {
             ) : (
               <p className="text-blue-800 dark:text-blue-300 whitespace-pre-wrap">{humanResponse}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Low Similarity Warning */}
+      {belowThreshold && techniques.length > 0 && (
+        <div className="w-full rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+          <div className="p-6">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 mt-0.5">warning</span>
+              <div>
+                <h3 className="text-lg font-bold text-amber-900 dark:text-amber-200 mb-2">
+                  Baixa Similaridade Detectada
+                </h3>
+                <p className="text-amber-800 dark:text-amber-300">
+                  Não foram encontradas técnicas com alta similaridade (acima de 70%) na base de dados. 
+                  O resultado abaixo mostra a técnica mais próxima encontrada, mas pode não ser uma correspondência precisa. 
+                  Considere reformular a descrição ou adicionar mais detalhes sobre o cenário de ataque.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

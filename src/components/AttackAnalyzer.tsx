@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
-import type { TechniqueMatch } from '../services/api';
 
 interface Technique {
   id: string;
@@ -265,16 +264,24 @@ const AttackAnalyzer: React.FC = () => {
     try {
       const result = await apiService.classifyNarrative(description, 10, useLlm, language);
       
-      const mappedTechniques: Technique[] = result.techniques.map((tech: TechniqueMatch) => ({
-        id: tech.technique_id,
-        name: tech.technique_name,
-        icon: getTechniqueIcon(tech.technique_id),
-        tactic: tech.tactic,
-        description: tech.description,
-        similarity_score: tech.similarity_score,
-      }));
+      const seenIds = new Set<string>();
+      const uniqueTechniques: Technique[] = [];
+      
+      for (const tech of result.techniques) {
+        if (!seenIds.has(tech.technique_id)) {
+          seenIds.add(tech.technique_id);
+          uniqueTechniques.push({
+            id: tech.technique_id,
+            name: tech.technique_name,
+            icon: getTechniqueIcon(tech.technique_id),
+            tactic: tech.tactic,
+            description: tech.description,
+            similarity_score: tech.similarity_score,
+          });
+        }
+      }
 
-      setTechniques(mappedTechniques);
+      setTechniques(uniqueTechniques);
       setHumanResponse(result.human_response || null);
       setLlmMetadata(result.llm_metadata || null);
       setProcessingTime(result.processing_time);
